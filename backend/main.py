@@ -46,10 +46,16 @@ app.add_middleware(
 
 _static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.isdir(_static_dir):
-    app.mount("/static", StaticFiles(directory=_static_dir), name="static")
+    app.mount("/assets", StaticFiles(directory=os.path.join(_static_dir, "assets")), name="assets")
 
 @app.get("/")
 def root():
+    return FileResponse(os.path.join(_static_dir, "index.html"))
+
+@app.get("/{full_path:path}")
+def spa_fallback(full_path: str):
+    if full_path.startswith("api"):
+        return {"detail": "Not found"}
     return FileResponse(os.path.join(_static_dir, "index.html"))
 
 
