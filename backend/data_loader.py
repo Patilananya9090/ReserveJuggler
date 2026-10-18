@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 
 _DEFAULT_DATA_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "..", "data", "treasury_4tier_dataset.csv"
+    os.path.dirname(__file__), "data", "treasury_4tier_dataset.csv"
 )
 DATA_PATH = os.environ.get("TREASURY_CSV", os.path.normpath(_DEFAULT_DATA_PATH))
 
