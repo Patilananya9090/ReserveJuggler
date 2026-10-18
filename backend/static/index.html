@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Reserve Juggler — Treasury Intelligence</title>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+<script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+body{background:#0f172a;color:#e2e8f0;font-family:system-ui,sans-serif;margin:0}
+.card{background:#1e293b;border:1px solid #334155;border-radius:.75rem;padding:1.25rem}
+.sl{font-size:.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:.25rem}
+.sv{font-size:1.4rem;font-weight:700;color:white}
+.nl{color:#94a3b8;font-size:.875rem;font-weight:500;cursor:pointer;padding:.25rem .5rem;border-radius:.375rem;white-space:nowrap}
+.nl:hover{color:white}
+.nl.a{color:#60a5fa;border-bottom:2px solid #60a5fa}
+input[type=number]{background:#334155;border:1px solid #475569;border-radius:.375rem;padding:.25rem .5rem;color:white;font-size:.875rem;width:100%}
+button.pri{padding:.5rem 1.25rem;background:#2563eb;color:white;border:none;border-radius:.5rem;cursor:pointer;font-weight:600;font-size:.875rem}
+button.pri:disabled{background:#334155;cursor:not-allowed}
+button.pri:hover:not(:disabled){background:#1d4ed8}
+button.sec{padding:.375rem 1rem;border-radius:.5rem;font-size:.875rem;font-weight:500;cursor:pointer;border:none}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const {useState,useEffect,Fragment,createElement:h}=React;
+const RC=Recharts;
+const fmt=n=>{if(!n&&n!==0)return'$0';const a=Math.abs(n);if(a>=1e6)return`$${(n/1e6).toFixed(2)}M`;if(a>=1e3)return`$${(n/1e3).toFixed(1)}K`;return`$${n.toFixed(0)}`};
+const p2=n=>`${(n||0).toFixed(2)}%`;
+const TC=['#3b82f6','#8b5cf6','#10b981','#f59e0b'];
+const TS={background:'#1e293b',border:'1px solid #475569'};
+
+function useAPI(path,deps=[]){
+  const [d,sd]=useState(null);
+  const [l,sl]=useState(true);
+  useEffect(()=>{sl(true);fetch(path).then(r=>r.json()).then(x=>{sd(x);sl(false);}).catch(()=>sl(false));},deps);
+  return [d,l];
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+function Dashboard(){
+  const [sum,sl]=useAPI('/api/summary');
+  const [ts,tl]=useAPI('/api/timeseries?limit=168');
+  if(sl)return h('div',{style:{color:'#94a3b8',textAlign:'center',marginTop:'5rem'}},'⏳ Loading & training models… (~45s on first load)');
+  const al=sum.tier_allocation,reg=sum.regime,mkt=sum.market,drag=sum.yield_drag;
+  const pie=[{name:'Cash',value:al.cash_pct},{name:'Repo',value:al.repo_pct},{name:'Bonds',value:al.bonds_pct},{name:'Equities',value:al.equities_pct}];
+  return h(Fragment,null,
+    h('div',{style:{display:'flex',alignItems:'center',gap:'1rem',flexWrap:'wrap',marginBottom:'1.5rem'}},
+      h('h1',{style:{fontSize:'1.5rem',fontWeight:700,color:'white',margin:0}},'📊 Treasury Dashboard'),
+      h('span',{style:{padding:'.2rem .75rem',borderRadius:'9999px',fontSize:'.8rem',fontWeight:700,
+        background:reg.label==='STRESS'?'rgba(239,68,68,.15)':'rgba(16,185,129,.15)',
+        color:reg.label==='STRESS'?'#f87171':'#34d399',
+        border:`1px solid ${reg.label==='STRESS'?'#dc2626':'#059669'}`}},
+        reg.label+(reg.cusum_alert?' ⚠ CUSUM':'')),
+      h('span',{style:{color:'#475569',fontSize:'.8rem'}},sum.timestamp),
+    ),
+    h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'1rem',marginBottom:'1.5rem'}},
+      h('div',{className:'card'},h('span',{className:'sl'},'Total AUM'),h('div',{className:'sv'},fmt(sum.total_aum_usd))),
+      h('div',{className:'card'},h('span',{className:'sl'},'Repo Rate APY'),h('div',{className:'sv'},p2(mkt.repo_rate_apy_pct))),
+      h('div',{className:'card'},h('span',{className:'sl'},'Bond Yield'),h('div',{className:'sv'},p2(mkt.bond_yield_pct))),
+      h('div',{className:'card',style:{background:'rgba(120,53,15,.3)',border:'1px solid #92400e'}},
+        h('span',{className:'sl',style:{color:'#fbbf24'}},'Yield Drag / Day'),
+        h('div',{className:'sv',style:{color:'#fbbf24'}},fmt(drag.daily_cost_usd)),
+        h('div',{style:{fontSize:'.7rem',color:'#f59e0b',marginTop:'.25rem'}},fmt(drag.hourly_cost_usd)+'/hr idle cash'),
+      ),
+    ),
+    h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1.5rem',marginBottom:'1.5rem'}},
+      h('div',{className:'card'},
+        h('div',{style:{fontSize:'.875rem',fontWeight:600,color:'#cbd5e1',marginBottom:'1rem'}},'Tier Allocation'),
+        h(RC.ResponsiveContainer,{width:'100%',height:220},
+          h(RC.PieChart,null,
+            h(RC.Pie,{data:pie,dataKey:'value',cx:'40%',cy:'50%',outerRadius:90,
+              label:({name,value})=>`${name} ${value.toFixed(0)}%`,labelLine:false},
+              pie.map((_,i)=>h(RC.Cell,{key:i,fill:TC[i]}))
+            ),
+            h(RC.Tooltip,{formatter:v=>`${v.toFixed(1)}%`,contentStyle:TS}),
+          )
+        ),
+        h('div',{style:{display:'flex',gap:'1rem',flexWrap:'wrap',marginTop:'.5rem'}},
+          pie.map((d,i)=>h('div',{key:d.name,style:{display:'flex',alignItems:'center',gap:'.375rem',fontSize:'.75rem',color:'#cbd5e1'}},
+            h('span',{style:{width:'.75rem',height:'.75rem',borderRadius:'50%',background:TC[i],display:'inline-block'}}),
+            `${d.name}: ${fmt(al[d.name.toLowerCase()+'_usd'])}`
+          ))
+        ),
+      ),
+      h('div',{className:'card'},
+        h('div',{style:{fontSize:'.875rem',fontWeight:600,color:'#cbd5e1',marginBottom:'1rem'}},'Net Flow — Last 7 Days'),
+        !tl&&ts&&h(RC.ResponsiveContainer,{width:'100%',height:220},
+          h(RC.LineChart,{data:ts.data,margin:{top:5,right:10,left:0,bottom:0}},
+            h(RC.CartesianGrid,{strokeDasharray:'3 3',stroke:'#334155'}),
+            h(RC.XAxis,{dataKey:'timestamp',tick:false}),
+            h(RC.YAxis,{tickFormatter:v=>`${(v/1e6).toFixed(0)}M`,tick:{fill:'#94a3b8',fontSize:10}}),
+            h(RC.Tooltip,{formatter:v=>fmt(v),contentStyle:TS}),
+            h(RC.Line,{type:'monotone',dataKey:'net_flow_usd',stroke:'#3b82f6',dot:false,strokeWidth:1.5}),
+          )
+        ),
+      ),
+    ),
+    h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'1rem'}},
+      h('div',{className:'card'},h('span',{className:'sl'},'Stock Index'),h('div',{className:'sv'},mkt.stock_price.toFixed(2))),
+      h('div',{className:'card'},h('span',{className:'sl'},'Stock Vol'),h('div',{className:'sv'},p2(mkt.stock_vol_pct))),
+      h('div',{className:'card'},h('span',{className:'sl'},'Bond Price Index'),h('div',{className:'sv'},mkt.bond_price_index.toFixed(3))),
+      h('div',{className:'card'},h('span',{className:'sl'},'Stress Probability'),
+        h('div',{className:'sv',style:{color:reg.stress_probability>.5?'#f87171':'#34d399'}},`${(reg.stress_probability*100).toFixed(1)}%`)),
+    ),
+  );
+}
+
+// ─── Forecast ─────────────────────────────────────────────────────────────────
+const QL={q05:'p5',q10:'p10',q25:'p25',q50:'Median',q75:'p75',q90:'p90',q95:'p95'};
+const QC=['#7dd3fc','#60a5fa','#3b82f6','#2563eb','#1d4ed8','#1e40af','#1e3a8a'];
+
+function Forecast(){
+  const [fc,fl]=useAPI('/api/forecast');
+  const [sw,sl]=useAPI('/api/sweep');
+  const [cv,cl]=useAPI('/api/coverage');
+  if(fl||sl)return h('div',{style:{color:'#94a3b8',textAlign:'center',marginTop:'5rem'}},'⏳ Loading forecast…');
+  const cd=Object.entries(QL).map(([k,label],i)=>({label,value:fc[k]||0,fill:QC[i]}));
+  return h(Fragment,null,
+    h('h1',{style:{fontSize:'1.5rem',fontWeight:700,color:'white',marginBottom:'.5rem'}},'🎯 Overnight Outflow Forecast'),
+    h('p',{style:{color:'#94a3b8',fontSize:'.875rem',marginBottom:'1.5rem'}},'Distribution of cumulative net outflow 17:00 → 08:00. Conformal-calibrated quantiles.'),
+    h('div',{className:'card',style:{marginBottom:'1.5rem'}},
+      h('div',{style:{fontSize:'.875rem',fontWeight:600,color:'#cbd5e1',marginBottom:'1rem'}},'Forecast Quantile Distribution'),
+      h(RC.ResponsiveContainer,{width:'100%',height:280},
+        h(RC.BarChart,{data:cd,margin:{left:10}},
+          h(RC.CartesianGrid,{strokeDasharray:'3 3',stroke:'#334155'}),
+          h(RC.XAxis,{dataKey:'label',tick:{fill:'#94a3b8',fontSize:12}}),
+          h(RC.YAxis,{tickFormatter:v=>`${(v/1e6).toFixed(1)}M`,tick:{fill:'#94a3b8',fontSize:10}}),
+          h(RC.Tooltip,{formatter:v=>fmt(v),contentStyle:TS}),
+          h(RC.Bar,{dataKey:'value',radius:[4,4,0,0]},cd.map((d,i)=>h(RC.Cell,{key:i,fill:d.fill}))),
+        )
+      ),
+    ),
+    sw&&h('div',{className:'card',style:{border:'1px solid #3b82f6',marginBottom:'1.5rem'}},
+      h('div',{style:{fontSize:'.875rem',fontWeight:600,color:'#93c5fd',marginBottom:'1rem'}},'⚡ Newsvendor Sweep Recommendation'),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'1rem',marginBottom:'1rem'}},
+        h('div',null,h('span',{className:'sl'},'Optimal Quantile (q*)'),h('div',{className:'sv',style:{color:'#60a5fa'}},p2(sw.optimal_quantile_adjusted*100))),
+        h('div',null,h('span',{className:'sl'},'Cash Buffer (B*)'),h('div',{className:'sv'},fmt(sw.optimal_cash_buffer_usd))),
+        h('div',null,h('span',{className:'sl'},'Sweep to Repo'),h('div',{className:'sv',style:{color:'#34d399'}},fmt(sw.sweep_to_repo_usd))),
+        h('div',null,h('span',{className:'sl'},'Overdraft APR'),h('div',{className:'sv',style:{color:'#f87171'}},p2(sw.overdraft_penalty_apr_pct))),
+      ),
+      h('div',{style:{background:'#0f172a',borderRadius:'.5rem',padding:'.75rem',fontSize:'.75rem',color:'#94a3b8'}},
+        h('strong',{style:{color:'#e2e8f0'}},'Formula: '),
+        `q* = c_u/(c_u+c_o) = ${sw.c_u_per_hour.toExponential(2)} / (${sw.c_u_per_hour.toExponential(2)} + ${sw.c_o_per_hour.toExponential(2)}) = `,
+        h('strong',{style:{color:'#93c5fd'}},`${(sw.optimal_quantile*100).toFixed(2)}%`),
+        ` (+${((sw.optimal_quantile_adjusted-sw.optimal_quantile)*100).toFixed(1)}% regime adj)`,
+      ),
+    ),
+    !cl&&cv&&h('div',{className:'card'},
+      h('div',{style:{fontSize:'.875rem',fontWeight:600,color:'#cbd5e1',marginBottom:'1rem'}},'📐 Conformal Coverage Gauge'),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:'.5rem'}},
+        Object.entries(cv).map(([key,v])=>{
+          const d=v.drift,good=Math.abs(d)<.03,warn=Math.abs(d)<.08;
+          return h('div',{key,style:{background:good?'rgba(16,185,129,.2)':warn?'rgba(234,179,8,.2)':'rgba(239,68,68,.2)',
+            border:`1px solid ${good?'#059669':warn?'#ca8a04':'#dc2626'}`,borderRadius:'.5rem',padding:'.5rem',textAlign:'center'}},
+            h('p',{style:{fontSize:'.65rem',color:'#94a3b8',margin:0}},QL[key]||key),
+            h('p',{style:{fontWeight:700,fontSize:'.875rem',color:'white',margin:'.125rem 0'}},`${(v.empirical*100).toFixed(0)}%`),
+            h('p',{style:{fontSize:'.7rem',color:d>=0?'#34d399':'#f87171',margin:0}},`${d>=0?'+':''}${(d*100).toFixed(1)}%`),
+          );
+        })
+      ),
+      h('p',{style:{fontSize:'.75rem',color:'#475569',marginTop:'.75rem'}},'Empirical vs nominal coverage on hold-out test set. Red = needs recalibration.'),
+    ),
+  );
+}
+
+// ─── Optimizer ────────────────────────────────────────────────────────────────
+function Optimizer(){
+  const [hz,sHz]=useState(24);
+  const [lam,sLam]=useState(2);
+  const [res,sRes]=useState(null);
+  const [loading,sLoad]=useState(false);
+  // Auto-fetch with 400ms debounce whenever hz or lam changes
+  useEffect(()=>{
+    sLoad(true);
+    const t=setTimeout(()=>{
+      fetch(`/api/portfolio?horizon=${hz}&risk_lambda=${lam}`)
+        .then(r=>r.json()).then(d=>{sRes(d);sLoad(false);})
+        .catch(()=>sLoad(false));
+    },400);
+    return ()=>clearTimeout(t);
+  },[hz,lam]);
+  const cd=res?[
+    {name:'Cash',value:res.allocations.cash_usd,fill:'#3b82f6'},
+    {name:'Repo',value:res.allocations.repo_usd,fill:'#8b5cf6'},
+    {name:'Bonds',value:res.allocations.bonds_usd,fill:'#10b981'},
+    {name:'Equities',value:res.allocations.equities_usd,fill:'#f59e0b'},
+  ]:[];
+  return h(Fragment,null,
+    h('h1',{style:{fontSize:'1.5rem',fontWeight:700,color:'white',marginBottom:'.5rem'}},'🧮 Multi-Period CVaR Optimizer'),
+    h('p',{style:{color:'#94a3b8',fontSize:'.875rem',marginBottom:'1.5rem'}},'Maximize E[yield] − λ·CVaR(95%) of cash shortfall over planning horizon.'),
+    h('div',{className:'card',style:{display:'flex',flexWrap:'wrap',gap:'1.5rem',alignItems:'flex-end',marginBottom:'1.5rem'}},
+      h('div',null,
+        h('span',{className:'sl'},'Horizon'),
+        h('div',{style:{display:'flex',gap:'.5rem'}},
+          [24,48,72].map(v=>h('button',{key:v,className:'sec',onClick:()=>sHz(v),
+            style:{background:hz===v?'#2563eb':'#334155',color:hz===v?'white':'#94a3b8'}},`${v}h`))
+        ),
+      ),
+      h('div',null,
+        h('span',{className:'sl'},`Risk Aversion λ = ${lam}`),
+        h('input',{type:'range',min:.5,max:10,step:.5,value:lam,onChange:e=>sLam(+e.target.value),
+          style:{width:'10rem',accentColor:'#3b82f6',display:'block'}}),
+      ),
+      loading&&h('span',{style:{color:'#60a5fa',fontSize:'.875rem',alignSelf:'center'}},'⏳ Optimizing…'),
+      res&&h('span',{style:{color:res.regime==='STRESS'?'#f87171':'#34d399',fontSize:'.8rem',fontWeight:600,alignSelf:'center'}},
+        `Regime: ${res.regime||'–'}`),
+    ),
+    res&&h(Fragment,null,
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'1rem',marginBottom:'1.5rem'}},
+        h('div',{className:'card'},h('span',{className:'sl'},'Expected Yield'),h('div',{className:'sv',style:{color:'#34d399'}},fmt(res.expected_yield_usd_horizon))),
+        h('div',{className:'card'},h('span',{className:'sl'},'Annualized Yield'),h('div',{className:'sv'},p2(res.annualized_yield_pct))),
+        h('div',{className:'card'},h('span',{className:'sl'},'CVaR 95%'),h('div',{className:'sv',style:{color:'#f87171'}},fmt(Math.abs(res.cvar_95_usd)))),
+        h('div',{className:'card'},h('span',{className:'sl'},'Total AUM'),h('div',{className:'sv'},fmt(res.total_aum_usd))),
+      ),
+      h('div',{className:'card'},
+        h('div',{style:{fontSize:'.875rem',fontWeight:600,color:'#cbd5e1',marginBottom:'1rem'}},'Optimized Allocation'),
+        h(RC.ResponsiveContainer,{width:'100%',height:240},
+          h(RC.BarChart,{data:cd,margin:{left:10}},
+            h(RC.CartesianGrid,{strokeDasharray:'3 3',stroke:'#334155'}),
+            h(RC.XAxis,{dataKey:'name',tick:{fill:'#94a3b8',fontSize:12}}),
+            h(RC.YAxis,{tickFormatter:v=>`${(v/1e6).toFixed(0)}M`,tick:{fill:'#94a3b8',fontSize:10}}),
+            h(RC.Tooltip,{formatter:v=>fmt(v),contentStyle:TS}),
+            h(RC.Bar,{dataKey:'value',radius:[4,4,0,0]},cd.map((d,i)=>h(RC.Cell,{key:i,fill:d.fill}))),
+          )
+        ),
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'1rem',marginTop:'1rem'}},
+          Object.entries(res.weights_pct).map(([t,p])=>
+            h('div',{key:t,style:{textAlign:'center'}},
+              h('span',{className:'sl',style:{textTransform:'capitalize'}},(t)),
+              h('div',{style:{fontWeight:700,color:'white'}},p2(p)),
+            )
+          )
+        ),
+      ),
+    ),
+  );
+}
+
+// ─── Sleeves ──────────────────────────────────────────────────────────────────
+function Sleeves(){
+  const [b,bl]=useAPI('/api/bond-sleeve');
+  const [e,el]=useAPI('/api/equity-sleeve');
+  if(bl||el)return h('div',{style:{color:'#94a3b8',textAlign:'center',marginTop:'5rem'}},'⏳ Loading sleeves…');
+  const bd=b.ladder.map(x=>({name:x.bucket,notional:x.notional_usd,carry:x.carry_annual_usd}));
+  const dd=Math.abs(e.drawdown_from_peak_pct);
+  return h(Fragment,null,
+    h('h1',{style:{fontSize:'1.5rem',fontWeight:700,color:'white',marginBottom:'1.5rem'}},'📐 Bond & Equity Sleeves'),
+    h('div',{className:'card',style:{marginBottom:'1.5rem'}},
+      h('div',{style:{fontSize:'1rem',fontWeight:600,color:'#e2e8f0',marginBottom:'.25rem'}},'Bond Sleeve — Maturity Ladder'),
+      h('p',{style:{fontSize:'.75rem',color:'#475569',marginBottom:'1rem'}},'dP ≈ −D_mod × dy. Duration-capped so 100bp shock < 1% NAV loss.'),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'1rem',marginBottom:'1rem'}},
+        h('div',null,h('span',{className:'sl'},'Total Notional'),h('div',{className:'sv'},fmt(b.total_bond_notional_usd))),
+        h('div',null,h('span',{className:'sl'},'Yield'),h('div',{className:'sv'},p2(b.current_yield_pct))),
+        h('div',null,h('span',{className:'sl'},'DV01 Total'),h('div',{className:'sv'},fmt(b.dv01_total_usd))),
+        h('div',null,h('span',{className:'sl'},'100bp Impact'),h('div',{className:'sv',style:{color:'#f87171'}},`${b.price_impact_100bp_pct.toFixed(3)}%`)),
+      ),
+      h('div',{style:{display:'inline-flex',alignItems:'center',padding:'.375rem .75rem',borderRadius:'9999px',fontSize:'.875rem',fontWeight:500,marginBottom:'1rem',
+        background:b.carry_beats_rate_shock?'rgba(16,185,129,.15)':'rgba(239,68,68,.15)',
+        color:b.carry_beats_rate_shock?'#34d399':'#f87171',
+        border:`1px solid ${b.carry_beats_rate_shock?'#059669':'#dc2626'}`}},
+        `${b.carry_beats_rate_shock?'✓ Carry beats rate shock':'✗ Rate shock exceeds carry'} — Carry ${b.carry_annual_pct.toFixed(3)}% vs shock ${b.rate_shock_loss_pct.toFixed(3)}%`
+      ),
+      h(RC.ResponsiveContainer,{width:'100%',height:200},
+        h(RC.BarChart,{data:bd,margin:{left:10}},
+          h(RC.CartesianGrid,{strokeDasharray:'3 3',stroke:'#334155'}),
+          h(RC.XAxis,{dataKey:'name',tick:{fill:'#94a3b8',fontSize:12}}),
+          h(RC.YAxis,{tickFormatter:v=>`${(v/1e6).toFixed(0)}M`,tick:{fill:'#94a3b8',fontSize:10}}),
+          h(RC.Tooltip,{formatter:v=>fmt(v),contentStyle:TS}),
+          h(RC.Legend),
+          h(RC.Bar,{dataKey:'notional',fill:'#10b981',radius:[4,4,0,0],name:'Notional'}),
+          h(RC.Bar,{dataKey:'carry',fill:'#34d399',radius:[4,4,0,0],name:'Annual Carry'}),
+        )
+      ),
+    ),
+    h('div',{className:'card',style:{border:`1px solid ${e.de_risk_triggered?'#dc2626':'#92400e'}`}},
+      h('div',{style:{fontSize:'1rem',fontWeight:600,color:'#e2e8f0',marginBottom:'.25rem'}},'Equity Sleeve'),
+      h('p',{style:{fontSize:'.75rem',color:'#475569',marginBottom:'1rem'}},'Permanent capital only. Drawdown-triggered de-risking.'),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'1rem',marginBottom:'1rem'}},
+        h('div',null,h('span',{className:'sl'},'Current Price'),h('div',{className:'sv'},e.current_stock_price.toFixed(2))),
+        h('div',null,h('span',{className:'sl'},'Peak Price'),h('div',{className:'sv'},e.peak_stock_price.toFixed(2))),
+        h('div',null,h('span',{className:'sl'},'Annualized Vol'),h('div',{className:'sv'},p2(e.annualized_volatility_pct))),
+        h('div',null,h('span',{className:'sl'},'Sharpe (vs Repo)'),h('div',{className:'sv'},e.estimated_sharpe.toFixed(3))),
+      ),
+      h('div',{style:{marginBottom:'1rem'}},
+        h('div',{style:{display:'flex',justifyContent:'space-between',fontSize:'.75rem',color:'#94a3b8',marginBottom:'.25rem'}},
+          h('span',null,'Drawdown from Peak: ',h('strong',{style:{color:e.de_risk_triggered?'#f87171':'#e2e8f0'}},`${e.drawdown_from_peak_pct.toFixed(2)}%`)),
+          h('span',null,`Threshold: ${e.de_risk_threshold_pct}%`),
+        ),
+        h('div',{style:{height:'.75rem',background:'#334155',borderRadius:'9999px',overflow:'hidden'}},
+          h('div',{style:{height:'100%',borderRadius:'9999px',width:`${Math.min(dd/20*100,100)}%`,background:e.de_risk_triggered?'#ef4444':'#f59e0b'}}),
+        ),
+      ),
+      h('div',{style:{padding:'.75rem 1rem',borderRadius:'.5rem',fontSize:'.875rem',fontWeight:500,marginBottom:'1rem',
+        background:e.de_risk_triggered?'rgba(239,68,68,.2)':'rgba(16,185,129,.2)',
+        color:e.de_risk_triggered?'#fca5a5':'#86efac',
+        border:`1px solid ${e.de_risk_triggered?'#dc2626':'#16a34a'}`}},e.action),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'1rem'}},
+        h('div',null,h('span',{className:'sl'},'Current'),h('div',{style:{fontWeight:700,color:'white',fontSize:'1.125rem'}},fmt(e.current_equity_notional_usd))),
+        h('div',null,h('span',{className:'sl'},'Recommended'),h('div',{style:{fontWeight:700,color:'#fbbf24',fontSize:'1.125rem'}},fmt(e.recommended_equity_usd))),
+        h('div',null,h('span',{className:'sl'},'Perm Cap'),h('div',{style:{fontWeight:700,color:'#94a3b8',fontSize:'1.125rem'}},fmt(e.permanent_capital_cap_usd))),
+      ),
+    ),
+  );
+}
+
+// ─── Regime ───────────────────────────────────────────────────────────────────
+function RegimePage(){
+  const [rg,rl]=useAPI('/api/regime');
+  const [sim,sSim]=useState(null);
+  const [simLoad,sSimLoad]=useState(false);
+  const [mult,sMult]=useState(3);
+  const [dur,sDur]=useState(6);
+  const [stH,sStH]=useState(22);
+  const runSim=()=>{
+    sSimLoad(true);
+    fetch(`/api/simulate?withdrawal_multiplier=${mult}&shock_start_hour=${stH}&shock_duration_hours=${dur}&current_cash_usd=50000000&current_repo_usd=300000000&current_bonds_usd=100000000&current_equities_usd=50000000`,{method:'POST'})
+      .then(r=>r.json()).then(d=>{sSim(d);sSimLoad(false);});
+  };
+  if(rl)return h('div',{style:{color:'#94a3b8',textAlign:'center',marginTop:'5rem'}},'⏳ Loading regime…');
+  const cur=rg.current;
+  const hist=(rg.history||[]);
+  const step=Math.max(1,Math.floor(hist.length/300));
+  const cd=hist.filter((_,i)=>i%step===0);
+  // find stress bands for ReferenceArea
+  const bands=[];
+  let s=null;
+  cd.forEach((d,i)=>{if(d.regime===1&&s===null)s=i;if(d.regime===0&&s!==null){bands.push([s,i-1]);s=null;}});
+  if(s!==null)bands.push([s,cd.length-1]);
+  return h(Fragment,null,
+    h('h1',{style:{fontSize:'1.5rem',fontWeight:700,color:'white',marginBottom:'1.5rem'}},'🔴 Regime Detection & Stress Testing'),
+    h('div',{className:'card',style:{border:`2px solid ${cur.label==='STRESS'?'#dc2626':'#16a34a'}`,marginBottom:'1.5rem'}},
+      h('div',{style:{display:'flex',alignItems:'center',gap:'1rem',flexWrap:'wrap'}},
+        h('div',{style:{width:'1rem',height:'1rem',borderRadius:'50%',background:cur.label==='STRESS'?'#ef4444':'#22c55e'}}),
+        h('h2',{style:{fontSize:'1.25rem',fontWeight:700,color:'white',margin:0}},'Current Regime: '+cur.label),
+        h('span',{style:{color:'#94a3b8',fontSize:'.875rem'}},cur.hours_in_current_state+'h in this state'),
+      ),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'1rem',marginTop:'1rem'}},
+        h('div',null,h('span',{className:'sl'},'Stress Probability'),h('div',{className:'sv'},`${(cur.stress_probability*100).toFixed(1)}%`)),
+        h('div',null,h('span',{className:'sl'},'CUSUM Alert'),h('div',{className:'sv',style:{color:cur.cusum_alert?'#f87171':'#34d399'}},cur.cusum_alert?'YES':'NO')),
+        h('div',null,h('span',{className:'sl'},'Quantile Adj.'),h('div',{className:'sv',style:{color:'#fbbf24'}},`+${(cur.quantile_adjustment*100).toFixed(0)}%`)),
+        h('div',null,h('span',{className:'sl'},'GMM State'),h('div',{className:'sv'},cur.state)),
+      ),
+    ),
+    h('div',{className:'card',style:{marginBottom:'1.5rem'}},
+      h('div',{style:{fontSize:'.875rem',fontWeight:600,color:'#cbd5e1',marginBottom:'1rem'}},'Full Year Regime Timeline (red bands = STRESS)'),
+      h(RC.ResponsiveContainer,{width:'100%',height:220},
+        h(RC.ComposedChart,{data:cd,margin:{left:0}},
+          h(RC.CartesianGrid,{strokeDasharray:'3 3',stroke:'#334155'}),
+          h(RC.XAxis,{dataKey:'timestamp',tick:false}),
+          h(RC.YAxis,{tickFormatter:v=>`${(v/1e6).toFixed(0)}M`,tick:{fill:'#94a3b8',fontSize:10}}),
+          h(RC.Tooltip,{contentStyle:TS,formatter:(v,n)=>n==='Net Flow'?fmt(v):v}),
+          ...bands.map(([s,e],i)=>h(RC.ReferenceArea,{key:i,x1:cd[s]?.timestamp,x2:cd[e]?.timestamp,fill:'#ef4444',fillOpacity:.15})),
+          h(RC.Area,{type:'monotone',dataKey:'net_flow',stroke:'#3b82f6',fill:'#3b82f6',fillOpacity:.1,dot:false,strokeWidth:1,name:'Net Flow'}),
+        )
+      ),
+    ),
+    h('div',{className:'card',style:{border:'1px solid #92400e'}},
+      h('div',{style:{fontSize:'1rem',fontWeight:600,color:'#fcd34d',marginBottom:'1rem'}},'⚔ War Room — Withdrawal Shock Simulator'),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'1rem',marginBottom:'1rem'}},
+        h('div',null,h('span',{className:'sl'},'Withdrawal Multiplier'),h('input',{type:'number',value:mult,min:1,max:20,step:.5,onChange:e=>sMult(+e.target.value)})),
+        h('div',null,h('span',{className:'sl'},'Start Hour (0–23)'),h('input',{type:'number',value:stH,min:0,max:23,onChange:e=>sStH(+e.target.value)})),
+        h('div',null,h('span',{className:'sl'},'Duration (hours)'),h('input',{type:'number',value:dur,min:1,max:24,onChange:e=>sDur(+e.target.value)})),
+        h('div',{style:{display:'flex',alignItems:'flex-end'}},
+          h('button',{className:'pri',onClick:runSim,disabled:simLoad,style:{width:'100%',background:simLoad?'#334155':'#d97706'}},simLoad?'Simulating…':'Run Simulation'),
+        ),
+      ),
+      sim&&h('div',null,
+        h('div',{style:{display:'flex',alignItems:'center',gap:'.75rem',marginBottom:'.75rem',flexWrap:'wrap'}},
+          h('span',{style:{padding:'.2rem .75rem',borderRadius:'9999px',fontSize:'.875rem',fontWeight:700,
+            background:sim.survived?'rgba(16,185,129,.15)':'rgba(239,68,68,.15)',
+            color:sim.survived?'#34d399':'#f87171',
+            border:`1px solid ${sim.survived?'#059669':'#dc2626'}`}},
+            sim.survived?'✓ SURVIVED':'✗ FAILED'),
+          h('span',{style:{color:'#94a3b8',fontSize:'.875rem'}},'Total shock: '+fmt(sim.scenario.total_shock_usd)),
+          h('span',{style:{color:'#f87171',fontWeight:600,fontSize:'.875rem'}},'Penalties: '+fmt(sim.total_penalty_usd)),
+        ),
+        h('div',{style:{display:'flex',flexDirection:'column',gap:'.5rem'}},
+          sim.cascade.map((tier,i)=>h('div',{key:i,style:{display:'flex',alignItems:'center',gap:'.75rem',background:'#0f172a',borderRadius:'.5rem',padding:'.625rem 1rem'}},
+            h('div',{style:{width:'1.5rem',height:'1.5rem',borderRadius:'50%',background:'#2563eb',color:'white',fontSize:'.7rem',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,flexShrink:0}},i),
+            h('div',{style:{flex:1}},
+              h('p',{style:{fontSize:'.875rem',fontWeight:500,color:'#e2e8f0',margin:0}},tier.tier),
+              h('div',{style:{height:'.375rem',background:'#334155',borderRadius:'9999px',marginTop:'.25rem'}},
+                h('div',{style:{height:'100%',background:'#3b82f6',borderRadius:'9999px',width:`${Math.min(tier.used_usd/sim.scenario.total_shock_usd*100,100)}%`}}),
+              ),
+            ),
+            h('div',{style:{textAlign:'right',fontSize:'.75rem'}},
+              h('p',{style:{color:'white',margin:0}},fmt(tier.used_usd)),
+              tier.penalty_usd>0&&h('p',{style:{color:'#f87171',margin:0}},`−${fmt(tier.penalty_usd)} (${tier.haircut_pct.toFixed(1)}%)`),
+            ),
+          ))
+        ),
+      ),
+    ),
+  );
+}
+
+// ─── Metrics ──────────────────────────────────────────────────────────────────
+function Metrics(){
+  const [m,ml]=useAPI('/api/metrics');
+  if(ml)return h('div',{style:{color:'#94a3b8',textAlign:'center',marginTop:'5rem'}},'⏳ Loading backtest results…');
+  if(!m)return h('div',{style:{color:'#94a3b8',textAlign:'center',marginTop:'5rem'}},'No data');
+  const nv=m.newsvendor,naive=m.naive;
+  const cum=(m.daily_pnl||[]).reduce((acc,d,i)=>{const p=acc[i-1]||{nv:0,ni:0};acc.push({date:d.timestamp.slice(5,10),nv:p.nv+d.newsvendor_pnl,ni:p.ni+d.naive_pnl});return acc;},[]);
+  const hm=m.penalty_heatmap||[];
+  const uq=[...new Set(hm.map(d=>d.quantile))].sort((a,b)=>a-b);
+  const uo=[...new Set(hm.map(d=>d.outflow_bucket))].sort((a,b)=>a-b);
+  const mxC=Math.max(...hm.map(d=>d.total_cost),1);
+  return h(Fragment,null,
+    h('h1',{style:{fontSize:'1.5rem',fontWeight:700,color:'white',marginBottom:'.5rem'}},'📈 Backtested Performance'),
+    h('p',{style:{color:'#94a3b8',fontSize:'.875rem',marginBottom:'1.5rem'}},`Full-year simulation. ${m.total_days} trading days.`),
+    h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1.5rem',marginBottom:'1.5rem'}},
+      [['Newsvendor Strategy',nv,'#3b82f6'],['Naive 20% Cash',naive,'#94a3b8']].map(([label,data,col])=>
+        h('div',{key:label,className:'card',style:{border:`1px solid ${col}44`}},
+          h('div',{style:{fontSize:'.875rem',fontWeight:600,color:col,marginBottom:'1rem'}},label),
+          h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'.75rem'}},
+            [['Total P&L',fmt(data.total_pnl_usd),'#34d399'],
+             ['Avg Daily',fmt(data.avg_daily_pnl_usd),'white'],
+             ['Sharpe',data.sharpe_ratio.toFixed(3),'white'],
+             ['Annual Yield',p2(data.annualized_yield_pct),'white'],
+             ['Overdrafts',data.overdraft_events,data.overdraft_events>0?'#f87171':'#34d399'],
+             ['OD Rate',p2(data.overdraft_rate_pct),data.overdraft_rate_pct>1?'#f87171':'#34d399'],
+             ['Worst Day',fmt(data.max_single_loss_usd),'#f87171'],
+            ].map(([l,v,c])=>h('div',{key:l},h('span',{className:'sl'},l),h('div',{style:{fontWeight:700,fontSize:'.9rem',color:c}},v)))
+          ),
+        )
+      )
+    ),
+    h('div',{className:'card',style:{background:'rgba(30,58,138,.3)',border:'1px solid #1d4ed8',marginBottom:'1.5rem'}},
+      h('p',{style:{fontWeight:600,color:'#93c5fd',margin:0}},
+        'Newsvendor advantage: ',
+        h('span',{style:{fontSize:'1.5rem',fontWeight:700,color:'#60a5fa'}},`${m.advantage_pct>0?'+':''}${m.advantage_pct.toFixed(4)}%`),
+        ` of AUM (${fmt(nv.total_pnl_usd-naive.total_pnl_usd)} extra)`,
+      )
+    ),
+    h('div',{className:'card',style:{marginBottom:'1.5rem'}},
+      h('div',{style:{fontSize:'.875rem',fontWeight:600,color:'#cbd5e1',marginBottom:'1rem'}},'Cumulative P&L — Newsvendor vs Naive'),
+      h(RC.ResponsiveContainer,{width:'100%',height:260},
+        h(RC.LineChart,{data:cum.filter((_,i)=>i%2===0),margin:{left:10}},
+          h(RC.CartesianGrid,{strokeDasharray:'3 3',stroke:'#334155'}),
+          h(RC.XAxis,{dataKey:'date',tick:{fill:'#94a3b8',fontSize:9},interval:20}),
+          h(RC.YAxis,{tickFormatter:v=>`${(v/1e3).toFixed(0)}K`,tick:{fill:'#94a3b8',fontSize:10}}),
+          h(RC.Tooltip,{formatter:v=>fmt(v),contentStyle:TS}),
+          h(RC.Legend),
+          h(RC.Line,{type:'monotone',dataKey:'nv',stroke:'#3b82f6',dot:false,strokeWidth:2,name:'Newsvendor'}),
+          h(RC.Line,{type:'monotone',dataKey:'ni',stroke:'#94a3b8',dot:false,strokeWidth:1.5,strokeDasharray:'4 4',name:'Naive 20%'}),
+        )
+      ),
+    ),
+    h('div',{className:'card'},
+      h('div',{style:{fontSize:'.875rem',fontWeight:600,color:'#cbd5e1',marginBottom:'.5rem'}},'🌡 Penalty Heat Map'),
+      h('p',{style:{fontSize:'.75rem',color:'#475569',marginBottom:'1rem'}},'Cost for each quantile choice vs actual outflow. Lighter = cheaper. Pick the lightest column for your expected outflow.'),
+      h('div',{style:{overflowX:'auto'}},
+        h('table',{style:{borderCollapse:'collapse',fontSize:'.7rem',width:'100%'}},
+          h('thead',null,h('tr',null,
+            h('th',{style:{color:'#94a3b8',padding:'.25rem',textAlign:'left'}},'q↓ out→'),
+            ...uo.map(o=>h('th',{key:o,style:{color:'#94a3b8',padding:'.25rem'}},(o/1e6).toFixed(1)+'M'))
+          )),
+          h('tbody',null,uq.map(q=>h('tr',{key:q},
+            h('td',{style:{color:'#e2e8f0',padding:'.25rem',fontWeight:600}},(q*100).toFixed(0)+'%'),
+            ...uo.map(o=>{
+              const cell=hm.find(c=>c.quantile===q&&Math.abs(c.outflow_bucket-o)<1e5);
+              const cost=cell?.total_cost??0;
+              const t=Math.min(cost/mxC,1);
+              const r=Math.round(239*t),g=Math.round(68*t+130*(1-t)),b=Math.round(68*t+200*(1-t));
+              return h('td',{key:o,style:{background:`rgb(${r},${g},${b})`,padding:'.25rem',textAlign:'center',color:'white',borderRadius:'2px'}},
+                cost>1000?`${(cost/1e3).toFixed(0)}K`:cost.toFixed(0));
+            })
+          )))
+        )
+      ),
+    ),
+  );
+}
+
+// ─── App Shell ────────────────────────────────────────────────────────────────
+const PAGES={dashboard:Dashboard,forecast:Forecast,optimizer:Optimizer,sleeves:Sleeves,regime:RegimePage,metrics:Metrics};
+const NAV=[
+  {id:'dashboard',label:'📊 Dashboard'},
+  {id:'forecast',label:'🎯 Forecast'},
+  {id:'optimizer',label:'🧮 Optimizer'},
+  {id:'sleeves',label:'📐 Sleeves'},
+  {id:'regime',label:'🔴 Regime & Stress'},
+  {id:'metrics',label:'📈 Metrics'},
+];
+
+function App(){
+  const [pg,sPg]=useState('dashboard');
+  const Page=PAGES[pg];
+  return h('div',{style:{minHeight:'100vh'}},
+    h('nav',{style:{background:'#0f172a',borderBottom:'1px solid #334155',padding:'.75rem 1.5rem',display:'flex',alignItems:'center',gap:'1.5rem',position:'sticky',top:0,zIndex:50,flexWrap:'wrap'}},
+      h('span',{style:{color:'#60a5fa',fontWeight:700,fontSize:'1.125rem',marginRight:'.5rem'}},'⚖️ Reserve Juggler'),
+      ...NAV.map(n=>h('span',{key:n.id,className:'nl'+(pg===n.id?' a':''),onClick:()=>sPg(n.id)},n.label))
+    ),
+    h('main',{style:{padding:'1.5rem',maxWidth:'1400px',margin:'0 auto'}},h(Page)),
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>

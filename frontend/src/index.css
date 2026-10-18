@@ -1,0 +1,243 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg:        #09090b;                /* zinc-950 */
+  --surface:   rgba(20,26,20,0.70);    /* dark forest-tinted zinc card */
+  --surface2:  rgba(30,38,30,0.90);    /* slightly lighter inner card */
+  --surface3:  rgba(16,22,16,0.40);    /* very subtle */
+  --border:    rgba(16,185,129,0.10);  /* emerald-500/10% ring */
+  --border2:   rgba(52,211,153,0.20);  /* emerald-400/20% accent ring */
+
+  /* Primary accent — forest-to-emerald green palette */
+  --purple:    #10b981;   /* emerald-500  (var name kept for chart compat) */
+  --purple-dk: #059669;   /* emerald-600 */
+  --blue:      #34d399;   /* emerald-400 */
+  --indigo:    #6ee7b7;   /* emerald-300 */
+  --cyan:      #a7f3d0;   /* emerald-200 */
+
+  --text1:     #f0fdf4;   /* green-50 — very slight green-white tint */
+  --text2:     #a1a1aa;   /* zinc-400 neutral muted */
+  --text3:     #71717a;   /* zinc-500 neutral grey */
+  --green:     #4ade80;
+  --red:       #f87171;
+  --amber:     #fbbf24;
+
+  /* backward-compat aliases → now emerald */
+  --orange:    #10b981;
+  --orange-lt: #6ee7b7;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  background-color: var(--bg);
+  color: var(--text1);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* ─── Cards — dark forest glass ─── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 22px;
+  box-shadow: 0 0 0 1px rgba(16,185,129,0.04), 0 1px 4px rgba(0,0,0,0.5);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.card2 {
+  background: var(--surface2);
+  border: 1px solid rgba(16,185,129,0.08);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+/* ─── Typography ─── */
+.stat-label {
+  font-size: 0.67rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--text1);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+/* ─── Gradient text — forest green inspired ─── */
+.grad-text {
+  background: linear-gradient(to bottom right, #f0fdf4, #4b7a5e);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.03em;
+}
+
+/* ─── Badges ─── */
+.badge-green {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(16,185,129,0.12);
+  color: #10b981;
+  border: 1px solid rgba(16,185,129,0.25);
+}
+
+.badge-red {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(248,113,113,0.10);
+  color: #f87171;
+  border: 1px solid rgba(248,113,113,0.22);
+}
+
+.badge-amber {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(251,191,36,0.10);
+  color: #fbbf24;
+  border: 1px solid rgba(251,191,36,0.22);
+}
+
+/* ─── Delta chip — inspired by "+$867" chips in reference design ─── */
+.delta-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(16,185,129,0.14);
+  color: #10b981;
+  letter-spacing: -0.01em;
+}
+.delta-chip-red {
+  background: rgba(248,113,113,0.12);
+  color: #f87171;
+}
+
+/* ─── Icon chip — round container for row icons (reference app style) ─── */
+.icon-chip {
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(16,185,129,0.12);
+  border: 1px solid rgba(16,185,129,0.18);
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+/* ─── Button — emerald pill (reference: dark green rounded buttons) ─── */
+.btn-primary {
+  padding: 9px 22px;
+  background: linear-gradient(135deg, #059669, #047857);
+  color: #f0fdf4;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: all 0.2s;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 0 1px rgba(16,185,129,0.35), 0 0 20px rgba(16,185,129,0.15);
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg, #10b981, #059669);
+  box-shadow: 0 0 0 1px rgba(52,211,153,0.5), 0 0 28px rgba(16,185,129,0.28);
+  transform: translateY(-1px);
+}
+.btn-primary:disabled { opacity: 0.40; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* ─── Input ─── */
+.input-field {
+  background: rgba(30,38,30,0.80);
+  border: 1px solid rgba(16,185,129,0.15);
+  border-radius: 9999px;
+  padding: 9px 16px;
+  color: var(--text1);
+  font-size: 0.875rem;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-field:focus {
+  border-color: rgba(16,185,129,0.50);
+  box-shadow: 0 0 0 3px rgba(16,185,129,0.10);
+}
+
+/* ─── Progress ─── */
+.progress-track {
+  height: 4px;
+  background: rgba(16,185,129,0.08);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.5s ease;
+  background: linear-gradient(90deg, #059669, #10b981);
+}
+
+.table-row {
+  border-top: 1px solid var(--border);
+  padding: 10px 0;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(16,185,129,0.15); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(16,185,129,0.35); }
+
+/* ─── Glow utilities ─── */
+.glow-green  { box-shadow: 0 0 32px rgba(16,185,129,0.22); }
+.glow-purple { box-shadow: 0 0 32px rgba(16,185,129,0.22); }
+.glow-blue   { box-shadow: 0 0 32px rgba(52,211,153,0.18); }
+
+/* ─── Green luminescent divider line ─── */
+.cobalt-line {
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(16,185,129,0.45), transparent);
+  border: none;
+  margin: 0;
+}
+
+/* ─── Forest card accent stripe (reference: the green left border on the Visa card) ─── */
+.card-stripe {
+  width: 4px;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #10b981, #059669);
+  flex-shrink: 0;
+}
